@@ -70,13 +70,106 @@ def format_score(score: float, decimal_places: int = 4) -> str:
     return f"{score:.{decimal_places}f}"
 
 
+def load_sample_documents() -> None:
+    """Load sample documents into the system"""
+    
+    sample_docs = [
+        {
+            "doc_id": "1",
+            "content": "Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed.",
+            "metadata": {"title": "Machine Learning Basics", "year": 2023}
+        },
+        {
+            "doc_id": "2",
+            "content": "Deep learning uses neural networks with multiple layers to process complex data patterns and achieve state-of-the-art results in computer vision and NLP.",
+            "metadata": {"title": "Deep Learning Guide", "year": 2023}
+        },
+        {
+            "doc_id": "3",
+            "content": "Natural language processing enables computers to understand, interpret, and generate human language in meaningful ways.",
+            "metadata": {"title": "NLP Introduction", "year": 2022}
+        },
+        {
+            "doc_id": "4",
+            "content": "Semantic search uses embeddings and neural networks to find documents based on meaning rather than just keyword matching.",
+            "metadata": {"title": "Semantic Search", "year": 2023}
+        },
+        {
+            "doc_id": "5",
+            "content": "Information retrieval systems combine multiple ranking algorithms like BM25, TF-IDF, and semantic search to deliver better results.",
+            "metadata": {"title": "Information Retrieval Systems", "year": 2022}
+        },
+        {
+            "doc_id": "6",
+            "content": "Reciprocal Rank Fusion is an algorithm that combines rankings from multiple information retrieval systems to produce a better overall ranking.",
+            "metadata": {"title": "Reciprocal Rank Fusion", "year": 2021}
+        },
+        {
+            "doc_id": "7",
+            "content": "Data science combines statistics, programming, and domain expertise to extract insights from data.",
+            "metadata": {"title": "Data Science Overview", "year": 2023}
+        },
+        {
+            "doc_id": "8",
+            "content": "Neural networks are computational models inspired by biological neurons that can learn complex patterns in data.",
+            "metadata": {"title": "Neural Networks", "year": 2023}
+        },
+    ]
+    
+    try:
+        with st.spinner("📥 Indexing sample documents..."):
+            response = requests.post(
+                f"{BACKEND_URL}/index",
+                json={"documents": sample_docs},
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                st.success(f"""
+                ✅ **Documents loaded successfully!**
+                
+                - 📊 Indexed: {result['indexed_count']} documents
+                - ❌ Failed: {result['failed_count']}
+                
+                Now try searching for something like:
+                - "machine learning"
+                - "neural networks"
+                - "semantic search"
+                """)
+            else:
+                st.error(f"❌ Failed to load documents: {response.json().get('error_message', 'Unknown error')}")
+    
+    except Exception as e:
+        st.error(f"❌ Error: {str(e)}")
+        st.info("Make sure the backend is running!")
+
+
+def format_score(score: float, decimal_places: int = 4) -> str:
+    """Format score to decimal places"""
+    return f"{score:.{decimal_places}f}"
+
+
 def search_interface() -> None:
     """Render search interface"""
     
     st.markdown("## 🎯 Search for Documents")
     
+    # Quick setup guide
+    with st.expander("⚡ Quick Start - Index Sample Documents First", expanded=True):
+        st.markdown("""
+        **Before searching, you need to index some documents!**
+        
+        Click the button below to add sample documents to the system.
+        """)
+        
+        if st.button("📥 Load Sample Documents", key="load_samples"):
+            load_sample_documents()
+    
+    st.markdown("---")
+    
     # Help section
-    with st.expander("📖 How to Search", expanded=True):
+    with st.expander("📖 How to Search", expanded=False):
         st.markdown("""
         1. **Enter keywords** - Type what you're looking for
         2. **Choose settings** - Adjust results count and search method
