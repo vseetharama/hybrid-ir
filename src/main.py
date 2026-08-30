@@ -66,6 +66,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Global in-memory document cache (for when MongoDB is unavailable)
+_document_cache = {}
+
 # Construct dependencies without connecting to MongoDB or loading/downloading
 # the sentence-transformer model. Endpoint tasks own those runtime operations.
 config = Config.from_env()
@@ -147,9 +150,19 @@ async def search(request: SearchRequest):
         )
         ranked_results = search_output.get("results", [])[: request.top_k]
         document_ids = [result[0] for result in ranked_results]
-        documents = (
-            db_manager.get_documents_batch(document_ids) if document_ids else {}
-        )
+        
+        # Try MongoDB first, fall back to cache
+        documents = {}
+        if db_manager.is_connected() or document_ids:
+            try:
+                documents = db_manager.get_documents_batch(document_ids) if document_ids else {}
+            except:
+                pass
+        
+        # Fill in from cache if not found in MongoDB
+        for doc_id in document_ids:
+            if str(doc_id) not in documents and str(doc_id) in _document_cache:
+                documents[str(doc_id)] = _document_cache[str(doc_id)]
 
         score_names = (
             "bm25_score",
@@ -159,7 +172,7 @@ async def search(request: SearchRequest):
         )
         formatted_results = []
         for document_id, combined_score, individual_scores in ranked_results:
-            document = documents.get(document_id, documents.get(str(document_id), {}))
+            document = documents.get(str(document_id), documents.get(document_id, {}))
             scores = individual_scores or {}
             formatted_results.append(
                 {
@@ -215,6 +228,13 @@ async def index(request: IndexRequest):
             batch = request.documents[i : i + batch_size]
 
             try:
+                # Cache documents in memory
+                for doc in batch:
+                    _document_cache[str(doc.get("doc_id"))] = {
+                        "content": doc.get("content", ""),
+                        "metadata": doc.get("metadata", {})
+                    }
+
                 # Connect to MongoDB if not already connected
                 if not db_manager.is_connected():
                     if not db_manager.connect():
