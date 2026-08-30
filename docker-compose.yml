@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: hybrid-ir-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: hybrid_ir_db
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: hybrid-ir-api
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/hybrid_ir_db?authSource=admin
+      MODEL_NAME: sentence-transformers/all-MiniLM-L6-v2
+      ENVIRONMENT: development
+      DEBUG: "true"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./indices:/app/indices
+      - ./models:/app/models
+      - ./logs:/app/logs
+    command: uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build: .
+    container_name: hybrid-ir-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      API_BASE_URL: http://api:8000
+      ENVIRONMENT: development
+    depends_on:
+      - api
+    volumes:
+      - ./src:/app/src
+      - ./logs:/app/logs
+    command: streamlit run src/frontend.py --server.port=8501 --server.address=0.0.0.0
+
+volumes:
+  mongodb_data:
+
+networks:
+  default:
+    name: hybrid-ir-network
